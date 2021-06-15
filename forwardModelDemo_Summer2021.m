@@ -2,7 +2,7 @@
 % 
 % Implementation for 3D motion perception
 % by Bas Rokers (rokers@nyu.edu) 
-% Baseed on demo of forward model for estimating
+% Based on demo of forward model for estimating
 % tuning functions (TFs)
 % js: 9.9.2014, (jserences@ucsd.edu)
 
@@ -35,13 +35,13 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
-for ii = 1:nChans
+for ii = 1:nDirections
     bf(:,ii) = cosd(xs-(ii-1)*45).^exponent;
 end
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
 
-% Plot model
+%% Plot model
 figure; hold on
 ph = plot([xs 360],[bf; bf(1,:)]'); % repeat 0 deg data at 360
 xlabel({' ','Motion Direction (deg)'})
@@ -98,6 +98,9 @@ for rr=runs % Hold out one run at a time
     tstind = (block == rr);     % set testing data
     tst = data(tstind,:);       % data from test scan (held out scan)
     
+    % Excercise: randomly select trials from the full dataset, 
+    % rather than hold one run out at a time
+    
     trng = g(trnind);           % trial labels for training data.
     tstg = g(tstind);           % trial labels for test data.
 
@@ -131,40 +134,61 @@ end
 figure; hold on
 whichVoxel = 100; % Pick a sample voxel
 bar(w(:,whichVoxel))
-xlabel('Channel')
+xlabel('Channel (deg)')
 ylabel('Weight')
 title(['Channel weights (voxel ' num2str(whichVoxel) ')'])
 xlim([.5 8.5])
+set(gca,'xticklabel', xs)
 
 %% Plot reconstructed channel responses (x) for one iteration
 figure; hold on
-plot([xs 360],[x x(:,1)])
+plot([xs 360],[x x(:,1)],'o-')
 title('Reconstructed channel response for 1 iteration')
 xlabel('Direction (deg)')
 ylabel('Channel response')
 xticks([0:45:360])
 xlim([0 360])
-lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
+lh = legend(cellfun(@num2str,num2cell([1:8]), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
 %% Plot average channel responses (chan) across holdouts
 
-% Compute average reconstructed channel response
-for ii = 1:nDirections
-    mean_chan(ii,:) = mean(chan(ii:nDirections:nTrials,:));
+%% Plot tuning by motion direction
+figure, hold on
+for ii = 1:8
+    ids = (g == ii);
+    meanchan(ii,:)  = mean(chan(ids,:)) - mean(mean(chan(ids,:))); % mean normalized response
 end
+ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
+plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
-figure; hold on
-plot([xs 360],[mean_chan mean_chan(:,1)])
-title('Mean channel response (averaged over hold-outs)')
-xlabel('Direction (deg)')
-ylabel('Channel response')
-xticks([0:45:360])
-xlim([0 360])
-lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
+% format figure
+lh = legend(cellfun(@num2str,num2cell([1:8]), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
+
+title('Reconstructed channel response')
+xlabel('Direction Channel (deg)')
+ylabel('Estimated Response')
+xticks([0:45:360])
+xlim([0 360])
+
+% % Compute average reconstructed channel response
+% for ii = 1:nDirections
+%     mean_chan(ii,:) = mean(chan(ii:nDirections:nTrials,:));
+% end
+% 
+% figure; hold on
+% plot([xs 360],[mean_chan mean_chan(:,1)])
+% title('Mean channel response (averaged over hold-outs)')
+% xlabel('Direction (deg)')
+% ylabel('Channel response')
+% xticks([0:45:360])
+% xlim([0 360])
+% lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
+% set(lh, 'Location', 'northeastoutside')
+% title(lh,'Presented direction')
 
 
 %% Plot confusion matrix (presented vs reconstructed (max x) over iterations
@@ -188,32 +212,13 @@ for ii=1:size(chan,1)
 end
 
 figure, hold on
-plot([-180:45:180], [mean(schan), mean(schan(:,1))],'o-')
+plot([-180:360/nChans:180], [mean(schan), mean(schan(:,1))],'o-')
 plot([-180 180],[mean(mean(schan)) mean(mean(schan))],'k:'); % mean response
 xlabel('Distance from Preferred Direction (deg)')
 ylabel('Estimated Response')
 title('Mean Tuning/Channel Response Function')
 xlim([-180 180])
 xticks([-180:45:360])
-
-
-%% Plot tuning by motion direction
-figure, hold on
-for ii = 1:8
-    ids = (g == ii);
-    meanchan(ii,:)  = mean(chan(ids,:)) - mean(mean(chan(ids,:))); % mean normalized response
-end
-ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
-plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
-lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
-set(lh, 'Location', 'northeastoutside')
-title(lh,'Presented direction')
-
-title('Reconstructed channel response')
-xlabel('Direction Channel (deg)')
-ylabel('Estimated Response')
-xticks([0:45:360])
-xlim([0 360])
 
 %% Or as a matrix
 % figure
