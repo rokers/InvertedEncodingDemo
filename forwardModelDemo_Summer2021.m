@@ -14,9 +14,11 @@
 % Requirements
 % Matlab wavelet toolbox (wshift)
 % Matlab deep learning toolbox (plotconfusion)
+% Circular statistics toolbox - https://github.com/circstat/circstat-matlab
+restoredefaultpath
+addpath(genpath('~/Dropbox (RVL)/Toolboxes/CircStat2012a')); % Add Circular Statistics toolbox
 set(0, 'DefaultLineLineWidth', 2); % Set figure linewidth default
 
-restoredefaultpath
 clear all;
 close all;
 
@@ -36,7 +38,8 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
 for ii = 1:nDirections
-    bf(:,ii) = cosd(xs-(ii-1)*45).^exponent;
+    %bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
+    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
@@ -63,10 +66,12 @@ yticks(0:.25:1);
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
-data = masked_ds{whichRoi}.samples;
+whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
+data = masked_ds{whichRoi}.samples + 1;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
+
+% zero-meaning seems to result in rank-deficiency errors
 
 % Inspect data and verify that it is zero mean, 
 % detrended and normalized (z-scored)
@@ -132,7 +137,7 @@ end
 
 %% Plot channel weights (w) for a sample voxel
 figure; hold on
-whichVoxel = 100; % Pick a sample voxel
+whichVoxel = 50; % Pick a sample voxel
 bar(w(:,whichVoxel))
 xlabel('Channel (deg)')
 ylabel('Weight')
@@ -148,7 +153,7 @@ xlabel('Direction (deg)')
 ylabel('Channel response')
 xticks([0:45:360])
 xlim([0 360])
-lh = legend(cellfun(@num2str,num2cell([1:8]), 'UniformOutput',false));
+lh = legend(cellfun(@num2str,num2cell([0:45:315]), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
@@ -158,17 +163,17 @@ title(lh,'Presented direction')
 figure, hold on
 for ii = 1:8
     ids = (g == ii);
-    meanchan(ii,:)  = mean(chan(ids,:)) - mean(mean(chan(ids,:))); % mean normalized response
+    meanchan(ii,:)  = mean(chan(ids,:)); % mean normalized response
 end
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
 % format figure
-lh = legend(cellfun(@num2str,num2cell([1:8]), 'UniformOutput',false));
+lh = legend(cellfun(@num2str,num2cell([0:45:315]), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
-title('Reconstructed channel response')
+title('Mean Reconstructed channel response')
 xlabel('Direction Channel (deg)')
 ylabel('Estimated Response')
 xticks([0:45:360])
