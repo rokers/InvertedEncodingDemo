@@ -33,14 +33,19 @@ nDirections = 8; % number of stimulus directions in your study
 nRepeats    = 20; % number repeats of each motion direction for the simulation
 nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
+% TAFKAP does:
+% normalize per TR over voxels
+
 %% Section 1: Build encoding model
 
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
 for ii = 1:nDirections
     %bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
-    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1); % von mises
+    % bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
+bf = eye(8); % delta function
+
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
 
@@ -82,7 +87,7 @@ xlabel('Voxel #')
 ylabel('Trial #')
 
 % Old (UW data)
-% load('myData_br_V1.mat')
+%load('myData_br_V1.mat')
 % load('myData_br_MT.mat') % contains trials x nVoxels
 % load('myData_br_IPS.mat')
 

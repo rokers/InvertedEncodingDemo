@@ -39,8 +39,10 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 xs = linspace(0, 360-360/nChans, nChans); 
 for ii = 1:nDirections
     %bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
-    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
+    % bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
+bf = eye(8); % delta functions
+
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
 
@@ -63,10 +65,15 @@ yticks(0:.25:1);
 % Intermediate values reflect intermediate directions moving directly
 % towards or away from one of the eyes
 
+% Heads up TAFKAP does:
+% normalize per TR over voxels. Check if that matters
+% Also, make sure to pull TAFKAP again
+
+
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
+whichRoi = 3; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples + 1;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -82,7 +89,7 @@ xlabel('Voxel #')
 ylabel('Trial #')
 
 % Old (UW data)
-% load('myData_br_V1.mat')
+%load('myData_br_V1.mat')
 % load('myData_br_MT.mat') % contains trials x nVoxels
 % load('myData_br_IPS.mat')
 
