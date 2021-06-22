@@ -38,10 +38,10 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
 for ii = 1:nDirections
-    %bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
-    % bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
+    % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
+    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
-bf = eye(8); % delta functions
+%bf = eye(8); % delta functions
 
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
@@ -73,7 +73,7 @@ yticks(0:.25:1);
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 3; % V1 - 1, hMT - 2, IPS - 3
+whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples + 1;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -102,6 +102,15 @@ ylabel('Trial #')
 runs = unique(block)'; % find the number of unique runs
 chan = nan(nTrials, nChans); % initialize hold-one out channel responses 
 
+% Excercise: randomly select trials from the full dataset,
+% rather than hold one run out at a time
+
+% c = cvpartition(block, 'KFold', 8); % Hold out 1 direction in each block
+c = cvpartition(g, 'KFold', 20); % KFold stratified cross validation
+
+% Note: if you hold out 2 groups (runs) at a time your cross-validation can
+% become much more granular
+
 for rr=runs % Hold out one run at a time
     fprintf('Computing iteration %d out of %d\n', rr, size(runs,2));
     
@@ -110,11 +119,15 @@ for rr=runs % Hold out one run at a time
     tstind = (block == rr);     % set testing data
     tst = data(tstind,:);       % data from test scan (held out scan)
     
-    % Excercise: randomly select trials from the full dataset, 
-    % rather than hold one run out at a time
-    
     trng = g(trnind);           % trial labels for training data.
     tstg = g(tstind);           % trial labels for test data.
+    
+    % Hold one out cross validation
+%     trn = data(c.training(rr),:);
+%     tst = data(c.test(rr),:);
+% 
+%     trng = g(c.training(rr));
+%     tstg = g(c.test(rr));
 
     % create the design matrix for computing channel weights in each voxel
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
@@ -209,8 +222,30 @@ xlim([0 360])
 for ii = 1:nTrials
     [~, pred(ii)] = max(chan(ii,:));
 end
-figure; hold on
-plotconfusion(categorical(g),categorical(pred'),'Test')
+% figure; hold on
+% plotconfusion(categorical(g),categorical(pred'),'Test')
+
+% or do it yourself
+conmat = confusionmat(categorical(g),categorical(pred'));
+conmat = conmat./nRepeats; % should really be ./nFolds, but that's not yet defined
+
+figure; hold on;
+imagesc(conmat);
+
+xlabel('Presented direction')
+ylabel('Decoded direction')
+
+axis tight
+c = colorbar;
+c.Label.String = 'Classification accurcy (%)';
+
+% Todo: Make blue/white/red colorbar, with white = chance performance
+mymap = [0 0 0
+    1 0 0
+    0 1 0
+    0 0 1
+    1 1 1];
+% use caxis
 
 %% Extra stuff follows below
 

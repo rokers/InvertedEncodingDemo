@@ -33,18 +33,15 @@ nDirections = 8; % number of stimulus directions in your study
 nRepeats    = 20; % number repeats of each motion direction for the simulation
 nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
-% TAFKAP does:
-% normalize per TR over voxels
-
 %% Section 1: Build encoding model
 
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
 for ii = 1:nDirections
-    %bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
-    % bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
+    % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
+    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
-bf = eye(8); % delta function
+% bf = eye(8); % delta functions
 
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
@@ -68,10 +65,15 @@ yticks(0:.25:1);
 % Intermediate values reflect intermediate directions moving directly
 % towards or away from one of the eyes
 
+% Heads up TAFKAP does:
+% normalize per TR over voxels. Check if that matters
+% Also, make sure to pull TAFKAP again
+
+
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
+whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples + 1;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -100,6 +102,12 @@ ylabel('Trial #')
 runs = unique(block)'; % find the number of unique runs
 chan = nan(nTrials, nChans); % initialize hold-one out channel responses 
 
+% Excercise: randomly select trials from the full dataset,
+% rather than hold one run out at a time
+
+% c = cvpartition(block, 'Holdout', 0.1);
+c = cvpartition(g, 'KFold', 20); % KFold stratified cross validation
+
 for rr=runs % Hold out one run at a time
     fprintf('Computing iteration %d out of %d\n', rr, size(runs,2));
     
@@ -108,11 +116,14 @@ for rr=runs % Hold out one run at a time
     tstind = (block == rr);     % set testing data
     tst = data(tstind,:);       % data from test scan (held out scan)
     
-    % Excercise: randomly select trials from the full dataset, 
-    % rather than hold one run out at a time
-    
     trng = g(trnind);           % trial labels for training data.
     tstg = g(tstind);           % trial labels for test data.
+    
+    tst = c.test(rr)
+    trn = c.training
+    
+
+
 
     % create the design matrix for computing channel weights in each voxel
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
