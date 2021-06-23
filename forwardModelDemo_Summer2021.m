@@ -15,6 +15,7 @@
 % Matlab wavelet toolbox (wshift)
 % Matlab deep learning toolbox (plotconfusion)
 % Circular statistics toolbox - https://github.com/circstat/circstat-matlab
+
 restoredefaultpath
 addpath(genpath('~/Dropbox (RVL)/Toolboxes/CircStat2012a')); % Add Circular Statistics toolbox
 set(0, 'DefaultLineLineWidth', 2); % Set figure linewidth default
@@ -41,7 +42,9 @@ for ii = 1:nDirections
     % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
     bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
-%bf = eye(8); % delta functions
+% bf = eye(8); % delta functions
+% Lowell wants to explore bimodal gaussians
+% Lowell: Can you provide some motivation?
 
 bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
@@ -69,12 +72,11 @@ yticks(0:.25:1);
 % normalize per TR over voxels. Check if that matters
 % Also, make sure to pull TAFKAP again
 
-
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
-data = masked_ds{whichRoi}.samples + 1;
+whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
+data = masked_ds{whichRoi}.samples + 100; % signal mean = 100%
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
 
@@ -107,6 +109,7 @@ chan = nan(nTrials, nChans); % initialize hold-one out channel responses
 
 % c = cvpartition(block, 'KFold', 8); % Hold out 1 direction in each block
 c = cvpartition(g, 'KFold', 20); % KFold stratified cross validation
+% look at repartition to stabilize results
 
 % Note: if you hold out 2 groups (runs) at a time your cross-validation can
 % become much more granular
@@ -122,7 +125,7 @@ for rr=runs % Hold out one run at a time
     trng = g(trnind);           % trial labels for training data.
     tstg = g(tstind);           % trial labels for test data.
     
-    % Hold one out cross validation
+%     % Hold one out cross validation
 %     trn = data(c.training(rr),:);
 %     tst = data(c.test(rr),:);
 % 
@@ -235,16 +238,29 @@ imagesc(conmat);
 xlabel('Presented direction')
 ylabel('Decoded direction')
 
+% xtick([0:45:360-45:);
+% xtick({
+
+xticks([1:8])
+xticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)}]))
+
+yticks([1:8])
+yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)}]))
+
 axis tight
 c = colorbar;
 c.Label.String = 'Classification accurcy (%)';
 
 % Todo: Make blue/white/red colorbar, with white = chance performance
-mymap = [0 0 0
-    1 0 0
-    0 1 0
-    0 0 1
-    1 1 1];
+% Or maybe red -> blue with transparency?
+T = [255,   0,   0          %// red
+     255, 255,  255         %// white
+     255, 255,  255         %// white
+     0, 0, 255]./255; %// blue again  -> note that this means values between 161 and 255 will be indistinguishable
+x = [0; 50; 100; 255];
+mymap = interp1(x/255,T,linspace(0,1,255));
+
+colormap(mymap)
 % use caxis
 
 %% Extra stuff follows below
