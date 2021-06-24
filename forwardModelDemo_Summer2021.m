@@ -11,13 +11,17 @@
 % Kok, Brouwer et al, 2013 - http://www.jneurosci.org/content/jneuro/33/41/16275.full.pdf
 % Sprague, Ester, Serences, 2014 - https://ac.els-cdn.com/S096098221400935X/1-s2.0-S096098221400935X-main.pdf?_tid=53d0885f-0d19-48e9-af55-f652ebb3e622&acdnat=1522855295_28aadf34bf55b19e10622f84c05e00ee
 
-% Requirements
-% Matlab wavelet toolbox (wshift)
+% Requirements:
 % Matlab deep learning toolbox (plotconfusion)
 % Circular statistics toolbox - https://github.com/circstat/circstat-matlab
 
 restoredefaultpath
-addpath(genpath('~/Dropbox (RVL)/Toolboxes/CircStat2012a')); % Add Circular Statistics toolbox
+circstat_path = '~/Documents/GitHub/circstat-matlab';
+if exist(circstat_path,'dir')
+    addpath(genpath('~/Documents/GitHub/circstat-matlab')); % Add Circular Statistics toolbox
+else
+    error('Please install the Circular statistics toolbox - https://github.com/circstat/circstat-matlab')
+end
 set(0, 'DefaultLineLineWidth', 2); % Set figure linewidth default
 
 clear all;
@@ -38,11 +42,11 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans); 
-for ii = 1:nDirections
+for ii = 1:nChans
     % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
     bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
-% bf = eye(8); % delta functions
+% bf = eye(nChans); % delta functions
 % Lowell wants to explore bimodal gaussians
 % Lowell: Can you provide some motivation?
 
@@ -271,7 +275,7 @@ colormap(mymap)
 % each trial is in the middle column
 
 for ii=1:size(chan,1)
-   schan(ii,:) = wshift('1D', chan(ii,:), g(ii)-5); % center on 180 deg channel
+   schan(ii,:) = circshift(chan(ii,:), g(ii)-5); % center on 180 deg channel
 end
 
 figure, hold on
