@@ -41,12 +41,14 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 %% Section 1: Build encoding model
 
 % design the basis function for estimating the channel weights in each voxel
-xs = linspace(0, 360-360/nChans, nChans); 
+xs = linspace(0, 360-360/nChans, nChans);
+
 for ii = 1:nChans
     % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
     bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
 % bf = eye(nChans); % delta functions
+
 % Lowell wants to explore bimodal gaussians
 % Lowell: Can you provide some motivation?
 
@@ -79,7 +81,7 @@ yticks(0:.25:1);
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
+whichRoi = 3; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples + 100; % signal mean = 100%
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -138,9 +140,20 @@ for rr=runs % Hold out one run at a time
 
     % create the design matrix for computing channel weights in each voxel
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
+    % presented_dir = [0 70 90 110 180 250 270 290];
+    % presented_dir = [0 60 90 120 180 240 270 300]; % 26.25% in MT
+    presented_dir = [0 55 90 125 180 235 270 305]; % 26.875% in MT
+    % presented_dir = [0 50 90 130 180 230 270 310]; % 28.125% in MT
+    % presented_dir = linspace(0, 360-360/nChans, nChans); % 26.875% in MT
+    % presented_dir = [0 30 90 150 180 210 270 330]; % 22.5% in MT
+    
     for ii=1:size(trn,1)
         % populate predicted channel responses 
-        X(ii,:) = bf(:,trng(ii)); % rows: observations (trials), columns: predicted response of each orientation channel 
+        % X(ii,:) = fshift(bf(:,trng(ii)),1); % rows: observations (trials), columns: predicted response of each orientation channel 
+        X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
+        % Channel responses need to be made more subtle. Oblique
+        % trajectories are closer to toward/away trajectories, so would
+        % produce more similar channel responses
     end
     
     % use a GLM to compute weight of each channel in each
@@ -180,7 +193,7 @@ xlabel('Direction (deg)')
 ylabel('Channel response')
 xticks([0:45:360])
 xlim([0 360])
-lh = legend(cellfun(@num2str,num2cell([0:45:315]), 'UniformOutput',false));
+lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
@@ -196,7 +209,7 @@ ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
 % format figure
-lh = legend(cellfun(@num2str,num2cell([0:45:315]), 'UniformOutput',false));
+lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
