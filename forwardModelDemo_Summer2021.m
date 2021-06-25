@@ -47,7 +47,7 @@ for ii = 1:nChans
     % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
     bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
-% bf = eye(nChans); % delta functions
+bf = eye(nChans); % delta functions
 
 % Lowell wants to explore bimodal gaussians
 % Lowell: Can you provide some motivation?
@@ -106,40 +106,31 @@ ylabel('Trial #')
 % g = [Truth; Truth]; % presented direction on each trial 
 % block = sort(repmat((1:nRepeats)', nDirections, 1));
 
-%% STEP 3: Hold one block out and solve for channel weights: 'Foward model'
-runs = unique(block)'; % find the number of unique runs
-chan = nan(nTrials, nChans); % initialize hold-one out channel responses 
+%% STEP 3: Hold one block out and solve for channel weights: 'Forward model'
 
-% Excercise: randomly select trials from the full dataset,
-% rather than hold one run out at a time
+nFolds = 500;
+chan = []; chan_tstg = [];
 
-% c = cvpartition(block, 'KFold', 8); % Hold out 1 direction in each block
-c = cvpartition(g, 'KFold', 20); % KFold stratified cross validation
-% look at repartition to stabilize results
-
-% Note: if you hold out 2 groups (runs) at a time your cross-validation can
-% become much more granular
-
-for rr=runs % Hold out one run at a time
-    fprintf('Computing iteration %d out of %d\n', rr, size(runs,2));
+for ff=1:nFolds % Hold one fold out at a time
+    fprintf('Computing iteration %d out of %d\n', ff, nFolds);
     
-    trnind = (block ~= rr);     % set training data
-    trn = data(trnind,:);       % data from training scans (all but one scan)
-    tstind = (block == rr);     % set testing data
-    tst = data(tstind,:);       % data from test scan (held out scan)
+    c = cvpartition(g, 'Holdout', 0.2);         % stratify by motion direction, but not scan
     
-    trng = g(trnind);           % trial labels for training data.
-    tstg = g(tstind);           % trial labels for test data.
+    % stratify by scan
+    % c.training = (block ~= (rem(ff,20)+1));   % set training data
+    % c.test = ~c.training;                     % data from training scans (all but one scan)
     
-%     % Hold one out cross validation
-%     trn = data(c.training(rr),:);
-%     tst = data(c.test(rr),:);
-% 
-%     trng = g(c.training(rr));
-%     tstg = g(c.test(rr));
-
+    % Hold one out cross validation
+    trn = data(c.training,:);                   % training data
+    tst = data(c.test,:);                       % test data
+    
+    trng = g(c.training);                       % trial labels for training data.
+    tstg = g(c.test);                           % trial labels for test data.
+    
     % create the design matrix for computing channel weights in each voxel
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
+    
+    % Define presented directions
     % presented_dir = [0 70 90 110 180 250 270 290];
     % presented_dir = [0 60 90 120 180 240 270 300]; % 26.25% in MT
     presented_dir = [0 55 90 125 180 235 270 305]; % 26.875% in MT
@@ -149,8 +140,8 @@ for rr=runs % Hold out one run at a time
     
     for ii=1:size(trn,1)
         % populate predicted channel responses 
-        % X(ii,:) = fshift(bf(:,trng(ii)),1); % rows: observations (trials), columns: predicted response of each orientation channel 
-        X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
+        X(ii,:) = bf(:,trng(ii)); %fshift(bf(:,trng(ii)),0); % rows: observations (trials), columns: predicted response of each orientation channel 
+        % X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
         % Channel responses need to be made more subtle. Oblique
         % trajectories are closer to toward/away trajectories, so would
         % produce more similar channel responses
@@ -168,9 +159,10 @@ for rr=runs % Hold out one run at a time
     x = (w'\tst')';  % reconstructed channel responses - or (inv(w*w')*w*tst')'
     
     % stack up the channel responses from each iteration of holding
-    % one-scan out... chan contains blocks by directions (20x8) by channels (8)
-    chan(rr*nDirections-nDirections+1:rr*nDirections,:) = x;
-    
+    % one fold out... chan contains blocks by directions (20x8) by channels (8)
+    %chan((ff-1)*nDirections+1:ff*nDirections,:) = x;
+    chan = [chan; x];
+    chan_tstg = [chan_tstg; tstg];
 end
 
 %% Visualize Results %%
@@ -187,7 +179,8 @@ set(gca,'xticklabel', xs)
 
 %% Plot reconstructed channel responses (x) for one iteration
 figure; hold on
-plot([xs 360],[x x(:,1)],'o-')
+meanchan = grpstats(x,tstg);
+plot([xs 360], [meanchan meanchan(:,1)], 'o-')
 title('Reconstructed channel response for 1 iteration')
 xlabel('Direction (deg)')
 ylabel('Channel response')
@@ -199,12 +192,12 @@ title(lh,'Presented direction')
 
 %% Plot average channel responses (chan) across holdouts
 
-%% Plot tuning by motion direction
 figure, hold on
-for ii = 1:8
-    ids = (g == ii);
-    meanchan(ii,:)  = mean(chan(ids,:)); % mean normalized response
-end
+% for ii = 1:8
+%     ids = (g == ii);
+%     meanchan(ii,:)  = mean(chan(ids,:)); % mean normalized response
+% end
+meanchan = grpstats(chan,chan_tstg);
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
@@ -239,15 +232,15 @@ xlim([0 360])
 %% Plot confusion matrix (presented vs reconstructed (max x) over iterations
 
 % compute predicted motion direction
-for ii = 1:nTrials
+for ii = 1:size(chan_tstg)
     [~, pred(ii)] = max(chan(ii,:));
 end
 % figure; hold on
 % plotconfusion(categorical(g),categorical(pred'),'Test')
 
 % or do it yourself
-conmat = confusionmat(categorical(g),categorical(pred'));
-conmat = conmat./nRepeats; % should really be ./nFolds, but that's not yet defined
+conmat = confusionmat(categorical(chan_tstg),categorical(pred'));
+conmat = conmat.*nDirections./length(chan_tstg); % should really be ./nFolds, but that's not yet defined
 
 figure; hold on;
 imagesc(conmat);
@@ -265,8 +258,8 @@ yticks([1:8])
 yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)}]))
 
 axis tight
-c = colorbar;
-c.Label.String = 'Classification accurcy (%)';
+cb = colorbar;
+cb.Label.String = 'Classification accurcy (%)';
 
 % Todo: Make blue/white/red colorbar, with white = chance performance
 % Or maybe red -> blue with transparency?
@@ -288,7 +281,7 @@ colormap(mymap)
 % each trial is in the middle column
 
 for ii=1:size(chan,1)
-   schan(ii,:) = circshift(chan(ii,:), g(ii)-5); % center on 180 deg channel
+   schan(ii,:) = circshift(chan(ii,:), -chan_tstg(ii)+5); % center on 0 deg channel
 end
 
 figure, hold on
@@ -309,6 +302,6 @@ xticks([-180:45:360])
 % axis xy
 
 %% How well did we do on the test set?
-disp(['Overall accuracy: ' num2str(100.*mean(g == pred')) '%'])
+disp(['Overall accuracy: ' num2str(100.*mean(chan_tstg == pred')) '%'])
 
 
