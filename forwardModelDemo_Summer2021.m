@@ -31,7 +31,7 @@ close all;
 
 % Encoding model
 nChans      = 8; % number of channels in your model (does not have to match # stim features).
-exponent    = 5; % Excercise: evaluate the effect of exponent
+exponent    = 5; % Excercise: evaluate the effect of exponent, needs to be odd
 
 % Data
 nDirections = 8; % number of stimulus directions in your study
@@ -43,8 +43,9 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans);
 
+% cosd(xs+xs(ii))
 for ii = 1:nChans
-    % bf(:,ii) = cosd(xs-(ii-1)*45).^exponent; % rectified cosine
+    bf(:,ii) = cosd(xs-xs(ii)).^exponent; % cosine
     bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
 end
 bf = eye(nChans); % delta functions
@@ -82,14 +83,19 @@ load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
 whichRoi = 3; % V1 - 1, hMT - 2, IPS - 3
-data = masked_ds{whichRoi}.samples + 100; % signal mean = 100%
+data = masked_ds{whichRoi}.samples + 0; % signal mean = 100%
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
 
-% zero-meaning seems to result in rank-deficiency errors
+% zero-meaning seems to result in weird behavior, rank-deficiency errors
+% and strange channel response reconstruction
+% at least for non-delta basis functions
+% BR thinks it has something to do with: 
+% If the channels peak exactly on or halfway between the stimuli you sampled, 
+% then the problem is underspecified, as the two channels on either side 
+% of each sampled stimulus value make the same prediction for the response at that stimulus value.
 
-% Inspect data and verify that it is zero mean, 
-% detrended and normalized (z-scored)
+% Inspect data
 figure
 imagesc(data)
 title('Measured voxel response')
@@ -131,16 +137,16 @@ for ff=1:nFolds % Hold one fold out at a time
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
     
     % Define presented directions
-    % presented_dir = [0 70 90 110 180 250 270 290];
+    % presented_dir = [0 70 90 110 180 250 270 290]; % 22.225% in MT
     % presented_dir = [0 60 90 120 180 240 270 300]; % 26.25% in MT
-    presented_dir = [0 55 90 125 180 235 270 305]; % 26.875% in MT
-    % presented_dir = [0 50 90 130 180 230 270 310]; % 28.125% in MT
-    % presented_dir = linspace(0, 360-360/nChans, nChans); % 26.875% in MT
+    % presented_dir = [0 55 90 125 180 235 270 305]; % 27.8687% in MT
+    % presented_dir = [0 50 90 130 180 230 270 310]; % 27.75% in MT
+    % presented_dir = linspace(0, 360-360/nChans, nChans); % 27.575% in MT
     % presented_dir = [0 30 90 150 180 210 270 330]; % 22.5% in MT
     
     for ii=1:size(trn,1)
         % populate predicted channel responses 
-        X(ii,:) = bf(:,trng(ii)); %fshift(bf(:,trng(ii)),0); % rows: observations (trials), columns: predicted response of each orientation channel 
+        X(ii,:) = bf(:,trng(ii)); % rows: observations (trials), columns: predicted response of each orientation channel 
         % X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
         % Channel responses need to be made more subtle. Oblique
         % trajectories are closer to toward/away trajectories, so would
@@ -179,7 +185,7 @@ set(gca,'xticklabel', xs)
 
 %% Plot reconstructed channel responses (x) for one iteration
 figure; hold on
-meanchan = grpstats(x,tstg);
+meanchan = grpstats(x,tstg); % calculate mean per channel
 plot([xs 360], [meanchan meanchan(:,1)], 'o-')
 title('Reconstructed channel response for 1 iteration')
 xlabel('Direction (deg)')
@@ -193,11 +199,7 @@ title(lh,'Presented direction')
 %% Plot average channel responses (chan) across holdouts
 
 figure, hold on
-% for ii = 1:8
-%     ids = (g == ii);
-%     meanchan(ii,:)  = mean(chan(ids,:)); % mean normalized response
-% end
-meanchan = grpstats(chan,chan_tstg);
+meanchan = grpstats(chan,chan_tstg); % calculate mean per channel
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
@@ -240,38 +242,37 @@ end
 
 % or do it yourself
 conmat = confusionmat(categorical(chan_tstg),categorical(pred'));
-conmat = conmat.*nDirections./length(chan_tstg); % should really be ./nFolds, but that's not yet defined
+conmat = conmat.*nDirections./length(chan_tstg); 
 
 figure; hold on;
+conmat = [conmat; conmat(1,:)]; % wrap matrix
+conmat = [conmat, conmat(:,1)];
 imagesc(conmat);
 
 xlabel('Presented direction')
 ylabel('Decoded direction')
 
-% xtick([0:45:360-45:);
-% xtick({
+xticks([1:9])
+xticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
 
-xticks([1:8])
-xticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)}]))
-
-yticks([1:8])
-yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)}]))
+yticks([1:9])
+yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
 
 axis tight
 cb = colorbar;
 cb.Label.String = 'Classification accurcy (%)';
 
-% Todo: Make blue/white/red colorbar, with white = chance performance
-% Or maybe red -> blue with transparency?
-T = [255,   0,   0          %// red
-     255, 255,  255         %// white
-     255, 255,  255         %// white
-     0, 0, 255]./255; %// blue again  -> note that this means values between 161 and 255 will be indistinguishable
-x = [0; 50; 100; 255];
-mymap = interp1(x/255,T,linspace(0,1,255));
-
-colormap(mymap)
-% use caxis
+% % Todo: Make blue/white/red colorbar, with white = chance performance
+% % Or maybe red -> blue with transparency?
+% T = [255,   0,   0          %// red
+%      255, 255,  255         %// white
+%      255, 255,  255         %// white
+%      0, 0, 255]./255; %// blue again  -> note that this means values between 161 and 255 will be indistinguishable
+% x = [0; 50; 100; 255];
+% mymap = interp1(x/255,T,linspace(0,1,255));
+% 
+% colormap(mymap)
+% % use caxis
 
 %% Extra stuff follows below
 
