@@ -82,7 +82,7 @@ yticks(0:.25:1);
 load('workspace.mat')
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 3; % V1 - 1, hMT - 2, IPS - 3
+whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples + 0; % signal mean = 100%
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -102,12 +102,12 @@ title('Measured voxel response')
 xlabel('Voxel #')
 ylabel('Trial #')
 
-% Old (UW data)
-%load('myData_br_V1.mat')
+% % Old (UW data)
+% load('myData_br_V1.mat')
 % load('myData_br_MT.mat') % contains trials x nVoxels
-% load('myData_br_IPS.mat')
-
-% data is trials x voxels
+% % load('myData_br_IPS.mat')
+% 
+% % data is trials x voxels
 % data = [traindat; testdat]; % reconstitute. Data was originally 50/50 split
 % g = [Truth; Truth]; % presented direction on each trial 
 % block = sort(repmat((1:nRepeats)', nDirections, 1));
@@ -122,7 +122,8 @@ for ff=1:nFolds % Hold one fold out at a time
     
     c = cvpartition(g, 'Holdout', 0.2);         % stratify by motion direction, but not scan
     
-    % stratify by scan
+    % stratify by scan and motion direction
+    % still does not work, showing weird reconstructed channel responses
     % c.training = (block ~= (rem(ff,20)+1));   % set training data
     % c.test = ~c.training;                     % data from training scans (all but one scan)
     
@@ -260,7 +261,7 @@ yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8
 
 axis tight
 cb = colorbar;
-cb.Label.String = 'Classification accurcy (%)';
+cb.Label.String = 'Classification performance (%)';
 
 % % Todo: Make blue/white/red colorbar, with white = chance performance
 % % Or maybe red -> blue with transparency?
