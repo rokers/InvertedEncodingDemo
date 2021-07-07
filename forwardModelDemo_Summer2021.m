@@ -31,7 +31,7 @@ close all;
 
 % Encoding model
 nChans      = 8; % number of channels in your model (does not have to match # stim features).
-exponent    = 5; % Excercise: evaluate the effect of exponent, needs to be odd
+basis       = 'delta'; %'von_mises'; %'delta'; %'cosine', 'von_mises'
 
 % Data
 nDirections = 8; % number of stimulus directions in your study
@@ -42,13 +42,22 @@ nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
 % design the basis function for estimating the channel weights in each voxel
 xs = linspace(0, 360-360/nChans, nChans);
-
-% cosd(xs+xs(ii))
-for ii = 1:nChans
-    bf(:,ii) = cosd(xs-xs(ii)).^exponent; % cosine
-    bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, 1.5); % von mises
+switch basis
+    case 'delta'
+        bf = eye(nChans); % delta functions
+    case 'cosine'
+        exponent = 5;
+        for ii = 1:nChans
+            bf(:,ii) = cosd(xs-xs(ii)).^exponent; % cosine
+        end
+    case 'von_mises'
+        kappa = 5; % concentration parameter, like 1/sigma
+        for ii = 1:nChans
+            bf(:,ii) = circ_vmpdf(pi.*xs./180, pi*xs(ii)./180, kappa); % von mises
+        end
+    otherwise
+        error('Unknown basis function')
 end
-bf = eye(nChans); % delta functions
 
 % Lowell wants to explore bimodal gaussians
 % Lowell: Can you provide some motivation?
@@ -79,11 +88,15 @@ yticks(0:.25:1);
 % normalize per TR over voxels. Check if that matters
 % Also, make sure to pull TAFKAP again
 
-load('workspace.mat')
+load('workspace.mat') % z-scored data
+% load('workspace_pct.mat'); % percent BOLD change data
+% load('workspace_pct_poly.mat'); % percent BOLD change data, 1st order polynomial detrend
+% _pct data has some outliers (>500% signal change) in V1 that affect the
+% results
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 2; % V1 - 1, hMT - 2, IPS - 3
-data = masked_ds{whichRoi}.samples + 0; % signal mean = 100%
+whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
+data = masked_ds{whichRoi}.samples;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
 
@@ -123,7 +136,7 @@ for ff=1:nFolds % Hold one fold out at a time
     c = cvpartition(g, 'Holdout', 0.2);         % stratify by motion direction, but not scan
     
     % stratify by scan and motion direction
-    % still does not work, showing weird reconstructed channel responses
+    % sometimes shows weird reconstructed channel responses
     % c.training = (block ~= (rem(ff,20)+1));   % set training data
     % c.test = ~c.training;                     % data from training scans (all but one scan)
     
@@ -138,20 +151,25 @@ for ff=1:nFolds % Hold one fold out at a time
     X = zeros(size(trn,1), nChans); % initialize predicted channel responses
     
     % Define presented directions
-    % presented_dir = [0 70 90 110 180 250 270 290]; % 22.225% in MT
-    % presented_dir = [0 60 90 120 180 240 270 300]; % 26.25% in MT
-    % presented_dir = [0 55 90 125 180 235 270 305]; % 27.8687% in MT
-    % presented_dir = [0 50 90 130 180 230 270 310]; % 27.75% in MT
-    % presented_dir = linspace(0, 360-360/nChans, nChans); % 27.575% in MT
-    % presented_dir = [0 30 90 150 180 210 270 330]; % 22.5% in MT
+    % presented_dir = [0 80 90 100 180 260 270 280]; % 24.0063% in MT, delta function
+    % presented_dir = [0 70 90 110 180 250 270 290]; % 24.6938% in MT
+    % presented_dir = [0 60 90 120 180 240 270 300]; % 28.3938% in MT
+    % presented_dir = [0 55 90 125 180 235 270 305]; % 29.325% in MT
+    % presented_dir = [0 50 90 130 180 230 270 310]; % 29.175% in MT
+    % presented_dir = linspace(0, 360-360/nChans, nChans); % 29.2188% in MT
+    % presented_dir = [0 30 90 150 180 210 270 330]; % 28.8813% in MT - better l/r decoding, worse t/a
     
     for ii=1:size(trn,1)
         % populate predicted channel responses 
+        % Retinal motion channel responses
         X(ii,:) = bf(:,trng(ii)); % rows: observations (trials), columns: predicted response of each orientation channel 
-        % X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
-        % Channel responses need to be made more subtle. Oblique
+        % Or use channel responses closer to world motion Oblique
         % trajectories are closer to toward/away trajectories, so would
         % produce more similar channel responses
+        % will not work correctly for delta basis function, as it will just
+        % rescale relative amplitude of basis functions
+        % X(ii,:) = fshift(bf(1,:),presented_dir(trng(ii))*4/180); % rows: observations (trials), columns: predicted response of each orientation channel 
+
     end
     
     % use a GLM to compute weight of each channel in each
@@ -240,6 +258,8 @@ for ii = 1:size(chan_tstg)
 end
 % figure; hold on
 % plotconfusion(categorical(g),categorical(pred'),'Test')
+
+% or alternatively, fit von mises to chan and read off mean
 
 % or do it yourself
 conmat = confusionmat(categorical(chan_tstg),categorical(pred'));
