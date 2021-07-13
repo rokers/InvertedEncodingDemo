@@ -88,9 +88,26 @@ yticks(0:.25:1);
 % normalize per TR over voxels. Check if that matters
 % Also, make sure to pull TAFKAP again
 
-load('workspace.mat') % z-scored data
+load('workspace.mat') % fft detrended, z-scored data
 % load('workspace_pct.mat'); % percent BOLD change data
 % load('workspace_pct_poly.mat'); % percent BOLD change data, 1st order polynomial detrend
+load('workspace_poly_z.mat'); % polynomial detrend, z-scored
+
+% load data directly
+for ii = 1 %1:20
+    % load fmriprepped data
+    nii{ii} = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/func/sub-0201_ses-01_task-3dmotion_run-1_space-T1w_desc-preproc_bold.nii.gz');
+    
+    % apply mask
+    mask = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/anat/rois/sub-0201_space-T1w_downsampled_V1.nii.gz');
+    
+    % extract timeseries in mask
+    masked_nii{ii} = cosmo_slice
+    
+     
+    % detrend, normalize and average
+end
+
 % _pct data has some outliers (>500% signal change) in V1 that affect the
 % results
 % Contains rois (roi names), new_p (parameters), 
@@ -127,13 +144,11 @@ ylabel('Trial #')
 
 %% STEP 3: Hold one block out and solve for channel weights: 'Forward model'
 
-nFolds = 500;
+nFolds = 1000;
 chan = []; chan_tstg = [];
 
 for ff=1:nFolds % Hold one fold out at a time
     fprintf('Computing iteration %d out of %d\n', ff, nFolds);
-    
-    c = cvpartition(g, 'Holdout', 0.2);         % stratify by motion direction, but not scan
     
     % stratify by scan and motion direction
     % sometimes shows weird reconstructed channel responses
@@ -141,6 +156,7 @@ for ff=1:nFolds % Hold one fold out at a time
     % c.test = ~c.training;                     % data from training scans (all but one scan)
     
     % Hold one out cross validation
+    c = cvpartition(g, 'Holdout', 0.1);         % stratify by motion direction, but not scan
     trn = data(c.training,:);                   % training data
     tst = data(c.test,:);                       % test data
     
