@@ -241,16 +241,17 @@ title(lh,'Presented direction')
 %% Plot average channel responses (chan) across holdouts
 
 figure(5), hold on
+subplot(3,1,whichRoi)
 meanchan = grpstats(chan,chan_tstg); % calculate mean per channel
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
-plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
+% plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
 % format figure
 lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
 set(lh, 'Location', 'northeastoutside')
 title(lh,'Presented direction')
 
-title('Mean Reconstructed channel response')
+title([rois(whichRoi) ':Mean Reconstructed channel response'])
 xlabel('Direction Channel (deg)')
 ylabel('Estimated Response')
 xticks([0:45:360])
