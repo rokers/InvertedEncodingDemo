@@ -38,6 +38,8 @@ nDirections = 8; % number of stimulus directions in your study
 nRepeats    = 20; % number repeats of each motion direction for the simulation
 nTrials     = nRepeats * nDirections; % number of trials in your experiment.
 
+nFolds = 250; % n-fold cross-validation
+
 %% Section 1: Build encoding model
 
 % design the basis function for estimating the channel weights in each voxel
@@ -66,7 +68,7 @@ bf = max(0,bf); % rectify
 bf = bf./max(bf); % norm to unit height
 
 %% Plot model
-figure; hold on
+figure(1); hold on
 ph = plot([xs 360],[bf; bf(1,:)]'); % repeat 0 deg data at 360
 xlabel({' ','Motion Direction (deg)'})
 ylabel({' ','Channel Response',' '});
@@ -88,31 +90,35 @@ yticks(0:.25:1);
 % normalize per TR over voxels. Check if that matters
 % Also, make sure to pull TAFKAP again
 
-load('workspace.mat') % fft detrended, z-scored data
+% load('workspace.mat') % fft detrended, z-scored data
 % load('workspace_pct.mat'); % percent BOLD change data
 % load('workspace_pct_poly.mat'); % percent BOLD change data, 1st order polynomial detrend
-load('workspace_poly_z.mat'); % polynomial detrend, z-scored
+% load('workspace_poly_z.mat'); % polynomial detrend, z-scored
+load('workspace_sub-205-poly-0_z.mat'); % sub-205, polynomial detrend, z-scored
+% load('workspace_sub-205-poly-3_z_roi-all.mat'); % sub-205, polynomial detrend, z-scored
 
-% load data directly
-for ii = 1 %1:20
-    % load fmriprepped data
-    nii{ii} = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/func/sub-0201_ses-01_task-3dmotion_run-1_space-T1w_desc-preproc_bold.nii.gz');
-    
-    % apply mask
-    mask = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/anat/rois/sub-0201_space-T1w_downsampled_V1.nii.gz');
-    
-    % extract timeseries in mask
-    masked_nii{ii} = cosmo_slice
-    
-     
-    % detrend, normalize and average
-end
+% % load data directly
+% for ii = 1 %1:20
+%     % load fmriprepped data
+%     nii{ii} = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/func/sub-0201_ses-01_task-3dmotion_run-1_space-T1w_desc-preproc_bold.nii.gz');
+%     
+%     % apply mask
+%     mask = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/anat/rois/sub-0201_space-T1w_downsampled_V1.nii.gz');
+%     
+%     % extract timeseries in mask
+%     masked_nii{ii} = cosmo_slice
+%     
+%      
+%     % detrend, normalize and average
+% end
 
 % _pct data has some outliers (>500% signal change) in V1 that affect the
 % results
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
-whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
+
+for whichRoi = 1:length(rois)
+% whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
 data = masked_ds{whichRoi}.samples;
 g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
 block = new_p.runNs; % block/scan indices
@@ -126,7 +132,7 @@ block = new_p.runNs; % block/scan indices
 % of each sampled stimulus value make the same prediction for the response at that stimulus value.
 
 % Inspect data
-figure
+figure(2)
 imagesc(data)
 title('Measured voxel response')
 xlabel('Voxel #')
@@ -144,7 +150,6 @@ ylabel('Trial #')
 
 %% STEP 3: Hold one block out and solve for channel weights: 'Forward model'
 
-nFolds = 1000;
 chan = []; chan_tstg = [];
 
 for ff=1:nFolds % Hold one fold out at a time
@@ -209,17 +214,19 @@ end
 %% Visualize Results %%
 
 %% Plot channel weights (w) for a sample voxel
-figure; hold on
-whichVoxel = 50; % Pick a sample voxel
+figure(3); hold on
+subplot(5,5,whichRoi)
+whichVoxel = 10; % Pick a sample voxel
 bar(w(:,whichVoxel))
 xlabel('Channel (deg)')
 ylabel('Weight')
 title(['Channel weights (voxel ' num2str(whichVoxel) ')'])
 xlim([.5 8.5])
 set(gca,'xticklabel', xs)
+title(rois(whichRoi))
 
 %% Plot reconstructed channel responses (x) for one iteration
-figure; hold on
+figure(4); hold on
 meanchan = grpstats(x,tstg); % calculate mean per channel
 plot([xs 360], [meanchan meanchan(:,1)], 'o-')
 title('Reconstructed channel response for 1 iteration')
@@ -233,7 +240,7 @@ title(lh,'Presented direction')
 
 %% Plot average channel responses (chan) across holdouts
 
-figure, hold on
+figure(5), hold on
 meanchan = grpstats(chan,chan_tstg); % calculate mean per channel
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
@@ -281,10 +288,12 @@ end
 conmat = confusionmat(categorical(chan_tstg),categorical(pred'));
 conmat = conmat.*nDirections./length(chan_tstg); 
 
-figure; hold on;
+figure(6); hold on;
+subplot(ceil(sqrt(length(rois))),ceil(sqrt(length(rois))),whichRoi)
 conmat = [conmat; conmat(1,:)]; % wrap matrix
 conmat = [conmat, conmat(:,1)];
-imagesc(conmat);
+clim = [0 .5]; % upper, lower limits
+imagesc(conmat, clim);
 
 xlabel('Presented direction')
 ylabel('Decoded direction')
@@ -296,6 +305,7 @@ yticks([1:9])
 yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
 
 axis tight
+title(rois(whichRoi))
 cb = colorbar;
 cb.Label.String = 'Classification performance (%)';
 
@@ -322,14 +332,17 @@ for ii=1:size(chan,1)
    schan(ii,:) = circshift(chan(ii,:), -chan_tstg(ii)+5); % center on 0 deg channel
 end
 
-figure, hold on
+figure(7), hold on
 plot([-180:360/nChans:180], [mean(schan), mean(schan(:,1))],'o-')
-plot([-180 180],[mean(mean(schan)) mean(mean(schan))],'k:'); % mean response
+% plot([-180 180],[mean(mean(schan)) mean(mean(schan))],'k:'); % mean response
 xlabel('Distance from Preferred Direction (deg)')
 ylabel('Estimated Response')
 title('Mean Tuning/Channel Response Function')
 xlim([-180 180])
 xticks([-180:45:360])
+if whichRoi == length(rois)
+    legend(rois)
+end
 
 %% Or as a matrix
 % figure
@@ -342,4 +355,4 @@ xticks([-180:45:360])
 %% How well did we do on the test set?
 disp(['Overall accuracy: ' num2str(100.*mean(chan_tstg == pred')) '%'])
 
-
+end
