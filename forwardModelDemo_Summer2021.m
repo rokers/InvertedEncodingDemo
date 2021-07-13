@@ -78,7 +78,21 @@ xticks(0:45:360);
 yticks(0:.25:1);
 
 %% Section 2: Load data 
-% Data is nTrials x nVoxels
+
+% TAFKAP_Decode(data, params);
+% data is nTrials x nVoxels
+
+sub = 'sub-0201';
+ses = {'01'}; %,'02'};
+run = 1:10; %[[1:10]'];%,[1:10]'];
+roi =  {'V1','V2','hMT','IPS0'};
+%roiname =  {'V1','V2','V3','V3A','hV4','LO','hMT','MST','IPS'};
+% roiname = {'V1','V2','V3','V3A','V3B','hV4','LO1','LO2','hMT','MST','IPS0','IPS1','IPS2','IPS3','IPS4','IPS5','VO1','VO2','SPL1','PHC1','PHC2','FEF'};
+BASE = '~/Dropbox (RVL)/MRI/Decoding/';
+DATA = loadmydata(sub,ses,run,BASE,roi);
+
+gg = [5:-1:1 8:-1:6 4:8 1:3]'; % true trial design matrix across all runs %lh
+g = repmat(gg,10,1);
 
 % This demo contains V1, MT and IPS data for one participant (br)
 % 3D motion stimuli are presented in 8 labeled directions, where
@@ -94,7 +108,7 @@ yticks(0:.25:1);
 % load('workspace_pct.mat'); % percent BOLD change data
 % load('workspace_pct_poly.mat'); % percent BOLD change data, 1st order polynomial detrend
 % load('workspace_poly_z.mat'); % polynomial detrend, z-scored
-load('workspace_sub-205-poly-0_z.mat'); % sub-205, polynomial detrend, z-scored
+% load('workspace_sub-205-poly-0_z.mat'); % sub-205, polynomial detrend, z-scored
 % load('workspace_sub-205-poly-3_z_roi-all.mat'); % sub-205, polynomial detrend, z-scored
 
 % % load data directly
@@ -104,11 +118,14 @@ load('workspace_sub-205-poly-0_z.mat'); % sub-205, polynomial detrend, z-scored
 %     
 %     % apply mask
 %     mask = niftiread('~/Dropbox (RVL)/MRI/Decoding/derivatives/fmriprep/sub-0201/ses-01/anat/rois/sub-0201_space-T1w_downsampled_V1.nii.gz');
+%     mask = repmat(mask,[1,1,1,250]);
+%     
+%     nii_masked{ii} = nii{ii}(mask);
 %     
 %     % extract timeseries in mask
 %     masked_nii{ii} = cosmo_slice
 %     
-%      
+%     
 %     % detrend, normalize and average
 % end
 
@@ -117,11 +134,24 @@ load('workspace_sub-205-poly-0_z.mat'); % sub-205, polynomial detrend, z-scored
 % Contains rois (roi names), new_p (parameters), 
 % and masked_ds (trials x voxels dataset organized by roi)
 
-for whichRoi = 1:length(rois)
+for whichRoi = 1:length(roi)
 % whichRoi = 1; % V1 - 1, hMT - 2, IPS - 3
-data = masked_ds{whichRoi}.samples;
-g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
-block = new_p.runNs; % block/scan indices
+
+% take average of every 2 TRs
+data = (DATA{whichRoi}(1:2:end-1,:) + DATA{whichRoi}(2:2:end,:)) ./2;
+
+% average every 8 datapoints
+data = squeeze(mean(reshape(data,15,8,[])));
+% reshape, and average
+
+
+% data = masked_ds{whichRoi}.samples;
+
+g = repmat(1:8,1,15)';
+% g = round(new_p.stimval./22.5); % ground truth, convert back to labels 1-8
+% block = new_p.runNs; % block/scan indices
+
+% data = DATA{whichRoi};
 
 % zero-meaning seems to result in weird behavior, rank-deficiency errors
 % and strange channel response reconstruction
@@ -161,7 +191,7 @@ for ff=1:nFolds % Hold one fold out at a time
     % c.test = ~c.training;                     % data from training scans (all but one scan)
     
     % Hold one out cross validation
-    c = cvpartition(g, 'Holdout', 0.1);         % stratify by motion direction, but not scan
+    c = cvpartition(g, 'Holdout', 0.125);         % stratify by motion direction, but not scan
     trn = data(c.training,:);                   % training data
     tst = data(c.test,:);                       % test data
     
@@ -223,7 +253,7 @@ ylabel('Weight')
 title(['Channel weights (voxel ' num2str(whichVoxel) ')'])
 xlim([.5 8.5])
 set(gca,'xticklabel', xs)
-title(rois(whichRoi))
+title(roi(whichRoi))
 
 %% Plot reconstructed channel responses (x) for one iteration
 figure(4); hold on
@@ -241,17 +271,21 @@ title(lh,'Presented direction')
 %% Plot average channel responses (chan) across holdouts
 
 figure(5), hold on
-subplot(3,1,whichRoi)
+nplot = ceil(sqrt(length(roi)));
+subplot(nplot,nplot,whichRoi)
 meanchan = grpstats(chan,chan_tstg); % calculate mean per channel
 ph = plot([xs 360], [meanchan meanchan(:,1)],'o-'); % tuning each direction
 % plot([0 360],[mean(mean(chan)) mean(mean(chan))],'k:'); % mean response
 
 % format figure
-lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
-set(lh, 'Location', 'northeastoutside')
+if whichRoi == length(roi)
+    lh = legend(cellfun(@num2str,num2cell(xs), 'UniformOutput',false));
+    set(lh, 'Location', 'northeastoutside')
+end
+
 title(lh,'Presented direction')
 
-title([rois(whichRoi) ':Mean Reconstructed channel response'])
+title([roi(whichRoi) 'Mean Reconstructed channel response'])
 xlabel('Direction Channel (deg)')
 ylabel('Estimated Response')
 xticks([0:45:360])
@@ -290,11 +324,12 @@ conmat = confusionmat(categorical(chan_tstg),categorical(pred'));
 conmat = conmat.*nDirections./length(chan_tstg); 
 
 figure(6); hold on;
-subplot(ceil(sqrt(length(rois))),ceil(sqrt(length(rois))),whichRoi)
+subplot(nplot,nplot,whichRoi)
 conmat = [conmat; conmat(1,:)]; % wrap matrix
 conmat = [conmat, conmat(:,1)];
-clim = [0 .5]; % upper, lower limits
-imagesc(conmat, clim);
+imagesc(conmat);
+% clim = [0 .5]; % upper, lower limits
+% imagesc(conmat, clim);
 
 xlabel('Presented direction')
 ylabel('Decoded direction')
@@ -306,8 +341,11 @@ yticks([1:9])
 yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
 
 axis tight
-title(rois(whichRoi))
-cb = colorbar;
+title(roi(whichRoi))
+
+if whichRoi == length(roi)
+    cb = colorbar;
+end
 cb.Label.String = 'Classification performance (%)';
 
 % % Todo: Make blue/white/red colorbar, with white = chance performance
@@ -341,8 +379,8 @@ ylabel('Estimated Response')
 title('Mean Tuning/Channel Response Function')
 xlim([-180 180])
 xticks([-180:45:360])
-if whichRoi == length(rois)
-    legend(rois)
+if whichRoi == length(roi)
+    legend(roi)
 end
 
 %% Or as a matrix
