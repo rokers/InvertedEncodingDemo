@@ -31,7 +31,7 @@ close all;
 
 % Encoding model
 nChans      = 8; % number of channels in your model (does not have to match # stim features).
-basis       = 'delta'; %'von_mises'; %'delta'; %'cosine', 'von_mises'
+basis       = 'cosine'; %'von_mises'; %'delta'; %'cosine', 'von_mises'
 
 % Data
 nDirections = 8; % number of stimulus directions in your study
@@ -312,8 +312,16 @@ xlim([0 360])
 
 % compute predicted motion direction
 for ii = 1:size(chan_tstg)
-    [~, pred(ii)] = max(chan(ii,:));
+    [~, pred(ii)] = max(chan(ii,:)); % This is wrong as it predominantly produces estimates that align with the peak of a channel
 end
+
+% Instead either
+% (1) compute a weighted circular sum of the channel weights and its basis
+% function peak
+% (2) generate predicted channel responses for stimuli on 0:360 in 1 deg
+% increments, and pick the stimulus direction where the resulting curve
+% correlates best with the observed combined weighted channel response
+
 % figure; hold on
 % plotconfusion(categorical(g),categorical(pred'),'Test')
 
