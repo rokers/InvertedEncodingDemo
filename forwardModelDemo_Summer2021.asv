@@ -87,8 +87,8 @@ yticks(0:.25:1);
 sub = 'sub-0201';
 ses = {'01'}; %,'02'};
 run = 1:10; %[[1:10]'];%,[1:10]'];
-% roi =  {'V2'};
-roi =  {'V1','V2','hMT','IPS0'};
+roi =  {'V2'};
+% roi =  {'V1','V2','hMT','IPS0'};
 %roiname =  {'V1','V2','V3','V3A','hV4','LO','hMT','MST','IPS'};
 % roiname = {'V1','V2','V3','V3A','V3B','hV4','LO1','LO2','hMT','MST','IPS0','IPS1','IPS2','IPS3','IPS4','IPS5','VO1','VO2','SPL1','PHC1','PHC2','FEF'};
 projectDir = '~/Dropbox (RVL)/MRI/Decoding/';
@@ -181,7 +181,7 @@ for whichRoi = 1:length(roi)
 
     %% STEP 3: Hold one block out and solve for channel weights: 'Forward model'
 
-    chan = []; chan_tstg = []; total_pred_direction = [];
+    chan = []; chan_tstg = []; totpred_direction
 
     for ff=1:nFolds % Hold one fold out at a time
         fprintf('Computing iteration %d out of %d\n', ff, nFolds);
@@ -250,7 +250,7 @@ for whichRoi = 1:length(roi)
         for ii = 1:length(tstg)
             pred_direction(ii) = mod(rad2deg(circ_mean(deg2rad(channel_peaks),x(ii,:))),360);
         end
-        total_pred_direction = [total_pred_direction; pred_direction'];
+        total_pred_direction = [total_pred_direction; pred_direction];
     end
 
     %% Visualize Results %%
@@ -283,7 +283,7 @@ for whichRoi = 1:length(roi)
         set(lh, 'Location', 'northeastoutside')
     end
 
-    % title(lh,'Presented direction')
+    title(lh,'Presented direction')
 
     title([roi(whichRoi) 'Mean Reconstructed channel response'])
     xlabel('Direction Channel (deg)')
@@ -327,7 +327,7 @@ for whichRoi = 1:length(roi)
     end
     figure(20)
     subplot(nplot,nplot,whichRoi)
-    scatter(xs(chan_tstg),total_pred_direction')
+    scatter(xs(tstg),pred_direction)
     lsline
     xlabel('Presented direction label')
     ylabel('Predicted direction label')
@@ -357,34 +357,34 @@ for whichRoi = 1:length(roi)
 
     % or alternatively, fit von mises to chan and read off mean
 
-    % or do it yourself (this stuff is wrong)
-%     conmat = confusionmat(categorical(chan_tstg),categorical(floor(pred_direction/45))');
-%     conmat = conmat.*nDirections./length(chan_tstg);
-% 
-%     figure(6); hold on;
-%     subplot(nplot,nplot,whichRoi)
-%     conmat = [conmat; conmat(1,:)]; % wrap matrix
-%     conmat = [conmat, conmat(:,1)];
-%     imagesc(conmat);
-%     % clim = [0 .5]; % upper, lower limits
-%     % imagesc(conmat, clim);
-% 
-%     xlabel('Presented direction')
-%     ylabel('Decoded direction')
+    % or do it yourself
+    conmat = confusionmat(categorical(chan_tstg),categorical(floor(pred_direction/45))');
+    conmat = conmat.*nDirections./length(chan_tstg);
 
-%     xticks([1:9])
-%     xticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
-% 
-%     yticks([1:9])
-%     yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
-% 
-%     axis tight
-%     title(roi(whichRoi))
-% 
-%     if whichRoi == length(roi)
-%         cb = colorbar;
-%     end
-%     cb.Label.String = 'Classification performance (%)';
+    figure(6); hold on;
+    subplot(nplot,nplot,whichRoi)
+    conmat = [conmat; conmat(1,:)]; % wrap matrix
+    conmat = [conmat, conmat(:,1)];
+    imagesc(conmat);
+    % clim = [0 .5]; % upper, lower limits
+    % imagesc(conmat, clim);
+
+    xlabel('Presented direction')
+    ylabel('Decoded direction')
+
+    xticks([1:9])
+    xticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
+
+    yticks([1:9])
+    yticklabels(cellstr([{char(8594)} {char(8599)} {char(8593)} {char(8598)} {char(8592)} {char(8601)} {char(8595)} {char(8600)} {char(8594)}]))
+
+    axis tight
+    title(roi(whichRoi))
+
+    if whichRoi == length(roi)
+        cb = colorbar;
+    end
+    cb.Label.String = 'Classification performance (%)';
 
     % % Todo: Make blue/white/red colorbar, with white = chance performance
     % % Or maybe red -> blue with transparency?
